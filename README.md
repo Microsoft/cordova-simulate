@@ -54,7 +54,7 @@ Where `opts` is an object with the following properties (all optional):
 * **touchevents** - A boolean. Set to `false` to disable the simulation of touch events in App-Host. Defaults to `true`.
 * **simulationpath** - the directory where temporary simulation files are hosted. Defaults to `projectRoot/simulate`.
 * **simhosttitle** - specifies the title of the simulation window. Defaults to `Plugin Simulation`.
-* **middleware** - A path that points to express middleware. This can be used to write custom plugins that require the full power of NodeJS.
+* **middleware** - A path that points to express middleware. This can be used to write custom plugins that deal with manipulating request data from your app. Further, the middleware has access to all of your `simulate_gap.js` plugins mentioned below using the simulateGapPlugins object. For more detail see the sampleMiddleware file in the docs folder.
 * **generateids** - A boolean that generates unique ids for simulated devices at startup. Defaults to `false`.
 
 
@@ -265,6 +265,54 @@ Note that:
 * A method call is always sent from `app-host` to `sim-host` or vice versa (that is, a call from `app-host` can only be
   handled by a method registered on `sim-host`, and vice versa).
 * Emitted messages, on the other hand, are sent both "locally" and across to the "other side".
+
+#### Simulate Gap Files
+
+*simulate_gap.js*
+
+This file sits between the `app-host-handlers` and `sim-host-handlers`. The key difference between it and the previous two is that it runs in a nodejs context and has access to all the features that node provides(including NPM modules). This allows you to write any plugin for cordova simulate that you could write for a native device. Cordova_gap files are written in the same service-method style that the other plugin files are written in. Finally, simulate_gap plugins have access to all other simulate_gap plugins through the simulateGapPlugins object. Other plugins can be called by using simulateGapPlugins[`service`][`method`] syntax.
+
+NOTE: Cordova-Simulate will first look for a exec handler in the app-host before checking a `simulate_gap.js` file. This means if you have a duplicate handler in `app-host-handlers.js` it will be run instead.
+
+Below is an example of a basic `simulate_gap.js` file written for [cordova-plugin-secure-storage](https://www.npmjs.com/package/cordova-plugin-secure-storage). While this use is a little silly with the availability of local-storage, it shows the power that these plugins provide.
+
+```js
+const nodePersist = require('node-persist');
+let storageBuckets = {}
+
+module.exports = {
+    SecureStorage:{
+        init:async(success,failure,args,simulateGapPlugins) => {
+            let [bucket] = args
+            storageBuckets[bucket] = nodePersist.create({dir: `.node-persist/${bucket}`})
+            try{
+                await storageBuckets[bucket].init();
+                success()
+            } catch(e) {
+                failure(e)
+            }
+        },
+        set:async(success,failure,args,simulateGapPlugins) => {
+            let [bucket,key,value] = args
+            try{
+                await storageBuckets[bucket].setItem(key,value)
+                success(key)
+            } catch(e) {
+                failure(e)
+            }
+        },
+        get:async(success,failure,args,simulateGapPlugins) => {
+            let[bucket,key] = args
+            try{
+                let value = await storageBuckets[bucket].getItem(key)
+                success(value)
+            } catch(e) {
+                failure(e)
+            }
+        }
+    }
+}
+```
 
 # Code of conduct
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.

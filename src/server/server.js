@@ -14,6 +14,10 @@ var fs = require('fs'),
     SocketServer = require('./socket'),
     pluginSimulationFiles = require('./plugin-files'),
     utils = require('./utils/jsUtils');
+// simulateGapPlugins can be called in customMiddleware File. 
+// Creation of a global nodPlugins variable, stops the use of having to do a process.simulateGapPluginsCall in the middleware file.
+// eslint-disable-next-line no-undef
+simulateGapPlugins = require('./node-plugins');
 
 /**
  * Maximum length of <meta> tag we search for when modifying CSP properties

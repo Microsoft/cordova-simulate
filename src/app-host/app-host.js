@@ -119,6 +119,8 @@ function setCordovaAndInitialize(originalCordova) {
     socket.on('refresh', function () {
         document.location.reload(true);
     });
+    
+    var pluginList = {};
 
     // firing of onNativeReady is delayed until SIM_HOST tells us it's ready
     socket.once('init', function () {
@@ -140,7 +142,6 @@ function setCordovaAndInitialize(originalCordova) {
 
         if (cordova.platformId !== 'browser') {
             channel.onPluginsReady.subscribe(function () {
-                var pluginList;
                 try {
                     pluginList = cordova.require('cordova/plugin_list').metadata;
                 } catch (ex) {
@@ -184,14 +185,30 @@ function setCordovaAndInitialize(originalCordova) {
 
     });
 
+    var initSuccess = false;
+
     socket.once('start', function () {
         // all set, fire onCordovaSimulate ready (which up to this point was
         // delaying onDeviceReady).
         channel.onCordovaSimulateReady.fire();
+        initSuccess = true;
         // an init after start means reload. it is only sent if sim-host was
         // reloaded
         socket.once('init', function () {
             window.location.reload(true);
+        });
+    });
+
+    // launching after reconnect, if connection lost before fired onCordovaSimulate
+    socket.on('reconnect', function () {
+        socket.once('connect', function () {
+            // register app-host
+            socket.emit('register-app-host');
+            if (!initSuccess) {
+                // send plugin list to Cordova Plugin Simulation tab
+                // (Which after its reception calls the function 'start')
+                socket.emit('app-plugin-list', pluginList);
+            }
         });
     });
 
